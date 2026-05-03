@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAOSTAT Heatmap</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px 10px;
+            background: linear-gradient(135deg, #cfd9eb 0%, #cfd9eb 100%);
+            min-height: 100vh;
+        }
+        #container {
+            background-color: transparent;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: none;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            display: none;
+        }
+        #top-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 40px;
+            align-items: center;
+            justify-content: space-between;
+            margin: 0 auto 16px;
+            width: min(100%, 1180px);
+        }
+        #hero {
+            flex: 1 1 520px;
+            min-width: 320px;
+        }
+        #title {
+            text-align: left;
+            font-size: 60px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+        #subtitle {
+            text-align: left;
+            font-size: 20px;
+            color: #4b5563;
+            max-width: 860px;
+            margin-bottom: 0;
+            line-height: 1.6;
+        }
+        #legend {
+            flex: 0 0 560px;
+            min-width: 560px;
+            margin-top: 0;
+            padding: 0;
+            background: transparent;
+            border-radius: 0;
+            border: none;
+            text-align: center;
+            align-self: center;
+        }
+        #heatmap {
+            margin: 2px auto 0;
+            width: min(100%, 1180px);
+            overflow-x: auto;
+            display: flex;
+            justify-content: center;
+        }
+        #heatmap svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* Mobile Layout */
+        @media (max-width: 768px) {
+            #container {
+                padding: 20px 10px;
+            }
+            #top-bar {
+                flex-direction: column;
+                gap: 20px;
+                align-items: flex-start;
+                margin-bottom: 20px;
+            }
+            #hero {
+                flex: none;
+                min-width: unset;
+                width: 100%;
+            }
+            #title {
+                font-size: 36px;
+                text-align: center;
+                margin-bottom: 8px;
+            }
+            #subtitle {
+                font-size: 16px;
+                text-align: center;
+                max-width: none;
+                margin-bottom: 20px;
+            }
+            #legend {
+                flex: none;
+                min-width: unset;
+                width: 100%;
+                margin-top: 0;
+                text-align: center;
+            }
+            #legend-svg-container {
+                justify-content: center;
+            }
+            #heatmap {
+                margin-top: 20px;
+                width: 100%;
+            }
+        }
+        .axis-label {
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .region-label {
+            font-size: 12px;
+            fill: #334155;
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+        }
+        .area-label {
+            font-size: 12px;
+            fill: #666;
+        }
+        .category-label {
+            font-size: 12px;
+            fill: #334155;
+            font-weight: 600;
+            writing-mode: horizontal-tb;
+            text-anchor: start;
+            dominant-baseline: central;
+        }
+        .expand-icon {
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            fill: #333;
+        }
+        .expand-icon:hover {
+            fill: #666;
+        }
+        .tooltip {
+            position: fixed;
+            background-color: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 1000;
+            max-width: 250px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+            line-height: 1.4;
+        }
+        .tooltip.visible {
+            opacity: 1;
+        }
+        .legend-title {
+            font-weight: 600;
+            margin-bottom: 25px;
+            color: #374151;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        #legend-svg-container {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 1px;
+            width: 100%;
+        }
+        .legend-labels {
+            display: flex;
+            justify-content: flex-end;
+            gap: 30px;
+            padding-top: 18px;
+        }
+        .legend-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            color: #374151;
+        }
+        .legend-label-color {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+        }
+        .legend-info {
+            margin-top: 15px;
+            font-size: 12px;
+            color: #6b7280;
+            font-style: italic;
+        }
+        #source {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #6b7280;
+            line-height: 1.4;
+            max-width: 1000px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        #loading {
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        #error {
+            padding: 15px;
+            background-color: #ffebee;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            color: #c62828;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>FAOSTAT Supply - Region/Lancet Category Heatmap</h1>
+            <div id="top-bar">
+                <div id="hero">
+                    <div id="title">The Lancet Diet</div>
+                    <div id="subtitle">represents dietary guidelines developed by 37 scientists from the EAT-Lancet Commission, aiming to optimize both human health and environmental sustainability for a global population of 10 billion. Use arrows to drill down to country level.</div>
+                </div>
+                <div id="legend"></div>
+            </div>
+            <div id="loading">Lade Daten...</div>
+            <div id="error"></div>
+            <div id="heatmap"></div>
+            <div id="source">Source: Summary Report of the EAT-Lancet Commission; Food and Agriculture Organization of the United Nations (Caloric intake is given as food supply and tends to exceed actual consumption due to unaccounted consumer waste) | by @LisHueb</div>
+    <div class="tooltip" id="tooltip"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
